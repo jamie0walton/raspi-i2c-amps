@@ -30,6 +30,10 @@ struct Args {
     /// Enable FFT analysis
     #[arg(short = 'f', long)]
     fft: bool,
+
+    /// Enable quiet output format
+    #[arg(short, long)]
+    quiet: bool,
 }
 
 #[derive(Debug)]
@@ -349,9 +353,9 @@ fn calculate_harmonics(values: &[f64]) -> (Vec<f64>, usize, usize) {
         .unwrap();
     let fundamental_magnitude = magnitudes[fundamental_idx];
 
-    // Calculate harmonic percentages (up to 15th harmonic)
+    // Calculate harmonic percentages (up to 9th harmonic instead of 15th)
     let mut harmonics = Vec::new();
-    for i in 1..=15 {
+    for i in 1..=7 {
         let harmonic_idx = fundamental_idx * i;
         if harmonic_idx < magnitudes.len() {
             let percentage = (magnitudes[harmonic_idx] / fundamental_magnitude) * 100.0;
@@ -389,10 +393,14 @@ fn report_statistics(readings: &Vec<Reading>, args: &Args) {
     }
 
     let now = Utc::now();
-    println!("Timestamp: {:.3} {}", 
-        now.timestamp() as f64 + now.timestamp_subsec_nanos() as f64 / 1_000_000_000.0,
-        now.to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
-    );
+    if args.quiet {
+        print!("{:.3}", now.timestamp() as f64 + now.timestamp_subsec_nanos() as f64 / 1_000_000_000.0);
+    } else {
+        println!("Timestamp: {:.3} {}", 
+            now.timestamp() as f64 + now.timestamp_subsec_nanos() as f64 / 1_000_000_000.0,
+            now.to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+        );
+    }
 
     let processed_readings = process_readings(readings);
     let values: Vec<f64> = processed_readings.iter().map(|(_t, v)| *v).collect();
@@ -410,21 +418,37 @@ fn report_statistics(readings: &Vec<Reading>, args: &Args) {
     let avg_value = trimmed_values.iter().sum::<f64>() / trimmed_values.len() as f64;
     
     // Print statistics
-    if args.verbose {
+    if args.verbose && !args.quiet {
         println!("Average current: {:.2}A", avg_value);
     }
     let rms = (trimmed_values.iter()
         .map(|v| v.powi(2))
         .sum::<f64>() / trimmed_values.len() as f64)
         .sqrt();
-    println!("RMS Current: {:.2}A", rms);
+    if args.quiet {
+        print!(",{:.2}", rms);
+    } else {
+        println!("RMS Current: {:.2}A", rms);
+    }
     
     // Print harmonics
     if args.fft {
-        print_harmonics(&harmonics);
+        if args.quiet {
+            // Skip the first harmonic (100%) and print the rest comma-separated
+            print!(",{}", harmonics.iter().skip(1)
+                .map(|h| format!("{:.1}", h))
+                .collect::<Vec<String>>()
+                .join(","));
+        } else {
+            print_harmonics(&harmonics);
+        }
+    }
+    
+    if args.quiet {
+        println!();
     }
 
-    if args.verbose {
+    if args.verbose && !args.quiet {
         // Calculate and print timing statistics
         let (min_interval, max_interval, avg_interval, actual_sps) = 
             calculate_timing_stats(&trimmed_readings);
@@ -437,7 +461,7 @@ fn report_statistics(readings: &Vec<Reading>, args: &Args) {
 
     // Create the plot if plotting is enabled
     if let Some(plot_filename) = &args.plot_filename {
-        plot_readings(&trimmed_readings, min_value, max_value, plot_filename, args.verbose);
+        plot_readings(&trimmed_readings, min_value, max_value, plot_filename, args.verbose && !args.quiet);
     }
 }
 
