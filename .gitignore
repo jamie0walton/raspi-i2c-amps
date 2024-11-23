@@ -1,0 +1,27 @@
+# Rust build directory
+/target/
+
+# Rust generated files
+**/*.rs.bk
+Cargo.lock
+
+# Debug files
+*.pdb
+
+# Archive files
+*.tgz
+*.tar.gz
+
+# Editor/IDE specific
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Environment files
+.env
+.env.local
+
+# Log files
+*.log
